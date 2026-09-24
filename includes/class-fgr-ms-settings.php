@@ -79,8 +79,9 @@ class FGR_MS_Settings {
             </div>
 
             <div class="fgr-ms-chart-wrap">
-                <h2>Besucher der letzten 30 Tage</h2>
-                <svg id="fgr-ms-chart" viewBox="0 0 600 160" preserveAspectRatio="none"></svg>
+                <h2>Besucherverlauf</h2>
+                <svg id="fgr-ms-chart"></svg>
+                <p id="fgr-ms-chart-empty" hidden>Für diesen Zeitraum gibt es keinen Verlauf (nur ein einzelner Tag).</p>
             </div>
 
             <div class="fgr-ms-columns">
