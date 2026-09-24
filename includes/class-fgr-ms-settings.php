@@ -80,7 +80,10 @@ class FGR_MS_Settings {
 
             <div class="fgr-ms-chart-wrap">
                 <h2>Besucherverlauf</h2>
-                <svg id="fgr-ms-chart"></svg>
+                <div id="fgr-ms-chart-wrap-inner" class="fgr-ms-chart-wrap-inner">
+                    <svg id="fgr-ms-chart"></svg>
+                    <div id="fgr-ms-tooltip" class="fgr-ms-tooltip" hidden></div>
+                </div>
                 <p id="fgr-ms-chart-empty" hidden>Für diesen Zeitraum gibt es keinen Verlauf (nur ein einzelner Tag).</p>
             </div>
 

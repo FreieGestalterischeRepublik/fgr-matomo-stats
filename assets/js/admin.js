@@ -17,6 +17,8 @@
 			renderPeriod(data, select.value);
 		}
 
+		setupTooltip();
+
 		window.addEventListener('resize', function () {
 			if (select) {
 				renderChart((data.periods || {})[select.value]);
@@ -81,6 +83,22 @@
 		});
 	}
 
+	/**
+	 * "Nice" Schrittgröße für Gitterlinien (1/2/5 × 10^n), damit die
+	 * Y-Achse runde Werte zeigt statt krummer Zwischenwerte.
+	 */
+	function niceStep(max, targetSteps) {
+		var raw = max / targetSteps;
+		var mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+		var norm = raw / mag;
+		var step;
+		if (norm < 1.5) step = 1;
+		else if (norm < 3) step = 2;
+		else if (norm < 7) step = 5;
+		else step = 10;
+		return step * mag;
+	}
+
 	function renderChart(period) {
 		var svg = document.getElementById('fgr-ms-chart');
 		var empty = document.getElementById('fgr-ms-chart-empty');
@@ -95,6 +113,7 @@
 			if (empty) {
 				empty.hidden = false;
 			}
+			svg._fgrScale = null;
 			return;
 		}
 		svg.hidden = false;
@@ -110,10 +129,10 @@
 		// preserveAspectRatio="none" zu strecken) - sonst wird Text verzerrt
 		// und die Linie sieht je nach Fensterbreite "kaputt" aus.
 		var width = svg.clientWidth || 600;
-		var height = 200;
+		var height = 220;
 		svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
 
-		var padLeft = 40;
+		var padLeft = 44;
 		var padRight = 10;
 		var padTop = 10;
 		var padBottom = 24;
@@ -121,15 +140,17 @@
 		var plotHeight = height - padTop - padBottom;
 
 		var values = trend.map(function (p) { return p.visits; });
-		var max = Math.max.apply(null, values.concat([1]));
+		var dataMax = Math.max.apply(null, values.concat([1]));
+		var step = niceStep(dataMax, 4);
+		var axisMax = Math.ceil(dataMax / step) * step || step;
 		var stepX = plotWidth / Math.max(trend.length - 1, 1);
 
 		function xAt(i) { return padLeft + i * stepX; }
-		function yAt(v) { return padTop + plotHeight - (v / max) * plotHeight; }
+		function yAt(v) { return padTop + plotHeight - (v / axisMax) * plotHeight; }
 
-		// Y-Achse: 0 und Maximalwert als Gitterlinie + Beschriftung.
-		[0, max].forEach(function (v) {
-			var y = yAt(v);
+		// Y-Achse: mehrere "runde" Gitterlinien statt nur 0 und Maximum.
+		for (var gridVal = 0; gridVal <= axisMax; gridVal += step) {
+			var y = yAt(gridVal);
 			var line = document.createElementNS(SVG_NS, 'line');
 			line.setAttribute('x1', padLeft);
 			line.setAttribute('x2', width - padRight);
@@ -144,9 +165,9 @@
 			label.setAttribute('text-anchor', 'end');
 			label.setAttribute('font-size', '11');
 			label.setAttribute('fill', '#646970');
-			label.textContent = v;
+			label.textContent = Math.round(gridVal);
 			svg.appendChild(label);
-		});
+		}
 
 		// X-Achse: nur eine Handvoll Datumsbeschriftungen, sonst wird es voll.
 		var labelEvery = Math.ceil(trend.length / 6);
@@ -154,19 +175,29 @@
 			if (i % labelEvery !== 0 && i !== trend.length - 1) {
 				return;
 			}
-			var label = document.createElementNS(SVG_NS, 'text');
-			label.setAttribute('x', xAt(i));
-			label.setAttribute('y', height - 6);
-			label.setAttribute('text-anchor', 'middle');
-			label.setAttribute('font-size', '11');
-			label.setAttribute('fill', '#646970');
-			label.textContent = formatDate(p.date);
-			svg.appendChild(label);
+			var xLabel = document.createElementNS(SVG_NS, 'text');
+			xLabel.setAttribute('x', xAt(i));
+			xLabel.setAttribute('y', height - 6);
+			xLabel.setAttribute('text-anchor', 'middle');
+			xLabel.setAttribute('font-size', '11');
+			xLabel.setAttribute('fill', '#646970');
+			xLabel.textContent = formatDate(p.date);
+			svg.appendChild(xLabel);
 		});
 
 		var points = trend.map(function (p, i) {
 			return xAt(i) + ',' + yAt(p.visits);
 		});
+
+		// Fläche unter der Linie.
+		var areaPoints = points.slice();
+		areaPoints.push(xAt(trend.length - 1) + ',' + yAt(0));
+		areaPoints.push(xAt(0) + ',' + yAt(0));
+		var area = document.createElementNS(SVG_NS, 'polygon');
+		area.setAttribute('points', areaPoints.join(' '));
+		area.setAttribute('fill', 'rgba(34, 113, 177, 0.12)');
+		area.setAttribute('stroke', 'none');
+		svg.appendChild(area);
 
 		var polyline = document.createElementNS(SVG_NS, 'polyline');
 		polyline.setAttribute('points', points.join(' '));
@@ -176,6 +207,65 @@
 		polyline.setAttribute('stroke-linejoin', 'round');
 		polyline.setAttribute('stroke-linecap', 'round');
 		svg.appendChild(polyline);
+
+		// Hover-Punkt (unsichtbar bis Mausbewegung, siehe setupTooltip()).
+		var hoverDot = document.createElementNS(SVG_NS, 'circle');
+		hoverDot.setAttribute('id', 'fgr-ms-hover-dot');
+		hoverDot.setAttribute('r', '4');
+		hoverDot.setAttribute('fill', '#2271b1');
+		hoverDot.setAttribute('stroke', '#fff');
+		hoverDot.setAttribute('stroke-width', '1.5');
+		hoverDot.style.display = 'none';
+		svg.appendChild(hoverDot);
+
+		// Skalen-Infos für den Tooltip-Handler merken (ein einziger, dauerhaft
+		// gebundener Listener liest das bei jeder Mausbewegung neu aus).
+		svg._fgrScale = { trend: trend, padLeft: padLeft, stepX: stepX, xAt: xAt, yAt: yAt };
+	}
+
+	function setupTooltip() {
+		var svg = document.getElementById('fgr-ms-chart');
+		var tooltip = document.getElementById('fgr-ms-tooltip');
+		var wrap = document.getElementById('fgr-ms-chart-wrap-inner');
+		if (!svg || !tooltip || !wrap) {
+			return;
+		}
+
+		svg.addEventListener('mousemove', function (evt) {
+			var scale = svg._fgrScale;
+			if (!scale) {
+				return;
+			}
+
+			var rect = svg.getBoundingClientRect();
+			var scaleX = svg.viewBox.baseVal.width / rect.width;
+			var mouseX = (evt.clientX - rect.left) * scaleX;
+
+			var index = Math.round((mouseX - scale.padLeft) / scale.stepX);
+			index = Math.max(0, Math.min(scale.trend.length - 1, index));
+			var point = scale.trend[index];
+
+			var dot = document.getElementById('fgr-ms-hover-dot');
+			if (dot) {
+				dot.setAttribute('cx', scale.xAt(index));
+				dot.setAttribute('cy', scale.yAt(point.visits));
+				dot.style.display = '';
+			}
+
+			var wrapRect = wrap.getBoundingClientRect();
+			tooltip.hidden = false;
+			tooltip.textContent = formatDate(point.date) + ': ' + point.visits + ' Besuche';
+			tooltip.style.left = (evt.clientX - wrapRect.left + 12) + 'px';
+			tooltip.style.top = (evt.clientY - wrapRect.top - 28) + 'px';
+		});
+
+		svg.addEventListener('mouseleave', function () {
+			tooltip.hidden = true;
+			var dot = document.getElementById('fgr-ms-hover-dot');
+			if (dot) {
+				dot.style.display = 'none';
+			}
+		});
 	}
 
 	function formatDate(iso) {
