@@ -41,19 +41,35 @@ class FGR_MS_Dashboard_Widget {
         echo '<span><strong>' . esc_html( (string) ( $today['visits'] ?? 0 ) ) . '</strong><br>Besuche heute</span>';
         echo '<span><strong>' . esc_html( (string) ( $month['visits'] ?? 0 ) ) . '</strong><br>Besuche (30 Tage)</span>';
         echo '</p>';
-        $this->render_sparkline( $month['trend'] ?? [] );
+        $this->render_sparkline_placeholder( $month['trend'] ?? [] );
         echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=fgr-matomo-stats' ) ) . '">Alle Statistiken ansehen &rarr;</a></p>';
         echo '</div>';
     }
 
     /**
-     * Kompakte, statische SVG-Sparkline mit Achsen (kein JS nötig, da auf der
-     * Dashboard-Seite kein admin.js geladen wird) für den 30-Tage-Verlauf.
-     * Feste Pixelgröße statt width:100% - sonst würde preserveAspectRatio
-     * beim Strecken die Achsenbeschriftung verzerren (siehe Statistik-Seite,
-     * dort wird die Breite deshalb erst zur Laufzeit per JS gemessen).
+     * Responsive Sparkline: admin.js zeichnet sie anhand der tatsächlichen
+     * Widget-Breite neu (auch bei Fensteränderung). Für Browser ohne JS gibt
+     * es als Fallback die feste, serverseitig gerenderte Variante.
      */
-    private function render_sparkline( array $trend ): void {
+    private function render_sparkline_placeholder( array $trend ): void {
+        if ( count( $trend ) < 2 ) {
+            return;
+        }
+
+        echo '<svg id="fgr-ms-widget-chart" class="fgr-ms-sparkline"></svg>';
+        echo '<script>window.fgrMsWidgetTrend = ' . wp_json_encode( $trend ) . ';</script>';
+        echo '<noscript>';
+        $this->render_sparkline_static( $trend );
+        echo '</noscript>';
+    }
+
+    /**
+     * Feste Pixelgröße statt width:100% - preserveAspectRatio würde beim
+     * Strecken sonst die Achsenbeschriftung verzerren. Nur als <noscript>-
+     * Fallback genutzt; normalerweise übernimmt admin.js das responsive
+     * Zeichnen (siehe render_sparkline_placeholder()).
+     */
+    private function render_sparkline_static( array $trend ): void {
         if ( count( $trend ) < 2 ) {
             return;
         }

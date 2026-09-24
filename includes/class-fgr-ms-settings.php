@@ -32,7 +32,7 @@ class FGR_MS_Settings {
     }
 
     public function enqueue( string $hook ): void {
-        if ( ! in_array( $hook, [ 'fgr-plugins_page_fgr-matomo-stats', 'admin_page_fgr-matomo-stats-settings' ], true ) ) {
+        if ( ! in_array( $hook, [ 'fgr-plugins_page_fgr-matomo-stats', 'admin_page_fgr-matomo-stats-settings', 'index.php' ], true ) ) {
             return;
         }
         wp_enqueue_style( 'fgr-ms-admin', FGR_MS_URL . 'assets/css/admin.css', [], FGR_MS_VERSION );

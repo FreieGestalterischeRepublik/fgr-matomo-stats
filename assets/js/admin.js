@@ -5,26 +5,114 @@
 
 	document.addEventListener('DOMContentLoaded', function () {
 		var data = window.fgrMsData;
-		if (!data) {
-			return;
-		}
-
 		var select = document.getElementById('fgr-ms-period');
-		if (select) {
+
+		if (data && select) {
 			select.addEventListener('change', function () {
 				renderPeriod(data, select.value);
 			});
 			renderPeriod(data, select.value);
+			setupTooltip();
 		}
 
-		setupTooltip();
+		renderWidgetChart();
 
 		window.addEventListener('resize', function () {
-			if (select) {
+			if (data && select) {
 				renderChart((data.periods || {})[select.value]);
 			}
+			renderWidgetChart();
 		});
 	});
+
+	/**
+	 * Kompakte Sparkline im Dashboard-Widget - eigenes, einfacheres Zeichnen
+	 * (keine Tooltip/mehrfach-Gitterlinien wie beim großen Chart), aber
+	 * genauso in echten Pixel-Koordinaten der aktuellen Breite, damit sie
+	 * bei jeder Widget-/Fensterbreite responsive und unverzerrt bleibt.
+	 */
+	function renderWidgetChart() {
+		var svg = document.getElementById('fgr-ms-widget-chart');
+		var trend = window.fgrMsWidgetTrend;
+		if (!svg || !trend || trend.length < 2) {
+			return;
+		}
+
+		while (svg.firstChild) {
+			svg.removeChild(svg.firstChild);
+		}
+
+		var width = svg.clientWidth || 280;
+		var height = 80;
+		svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+
+		var padLeft = 26;
+		var padRight = 6;
+		var padTop = 6;
+		var padBottom = 16;
+		var plotWidth = width - padLeft - padRight;
+		var plotHeight = height - padTop - padBottom;
+
+		var values = trend.map(function (p) { return p.visits; });
+		var max = Math.max.apply(null, values.concat([1]));
+		var stepX = plotWidth / Math.max(trend.length - 1, 1);
+
+		function xAt(i) { return padLeft + i * stepX; }
+		function yAt(v) { return padTop + plotHeight - (v / max) * plotHeight; }
+
+		[0, max].forEach(function (v) {
+			var y = yAt(v);
+			var line = document.createElementNS(SVG_NS, 'line');
+			line.setAttribute('x1', padLeft);
+			line.setAttribute('x2', width - padRight);
+			line.setAttribute('y1', y);
+			line.setAttribute('y2', y);
+			line.setAttribute('stroke', '#e2e4e7');
+			svg.appendChild(line);
+
+			var label = document.createElementNS(SVG_NS, 'text');
+			label.setAttribute('x', padLeft - 4);
+			label.setAttribute('y', y + 3);
+			label.setAttribute('text-anchor', 'end');
+			label.setAttribute('font-size', '9');
+			label.setAttribute('fill', '#646970');
+			label.textContent = v;
+			svg.appendChild(label);
+		});
+
+		[{ i: 0, anchor: 'start', x: padLeft }, { i: trend.length - 1, anchor: 'end', x: width - padRight }].forEach(function (cfg) {
+			var label = document.createElementNS(SVG_NS, 'text');
+			label.setAttribute('x', cfg.x);
+			label.setAttribute('y', height - 3);
+			label.setAttribute('text-anchor', cfg.anchor);
+			label.setAttribute('font-size', '9');
+			label.setAttribute('fill', '#646970');
+			label.textContent = formatDate(trend[cfg.i].date);
+			svg.appendChild(label);
+		});
+
+		var points = trend.map(function (p, i) {
+			return xAt(i) + ',' + yAt(p.visits);
+		});
+
+		var area = points.slice();
+		area.push(xAt(trend.length - 1) + ',' + yAt(0));
+		area.push(xAt(0) + ',' + yAt(0));
+		var areaEl = document.createElementNS(SVG_NS, 'polygon');
+		areaEl.setAttribute('points', area.join(' '));
+		areaEl.setAttribute('fill', 'rgba(34, 113, 177, 0.12)');
+		areaEl.setAttribute('stroke', 'none');
+		svg.appendChild(areaEl);
+
+		var polyline = document.createElementNS(SVG_NS, 'polyline');
+		polyline.setAttribute('points', points.join(' '));
+		polyline.setAttribute('fill', 'none');
+		polyline.setAttribute('stroke', '#2271b1');
+		polyline.setAttribute('stroke-width', '2');
+		polyline.setAttribute('stroke-linejoin', 'round');
+		polyline.setAttribute('stroke-linecap', 'round');
+		svg.appendChild(polyline);
+	}
 
 	function renderPeriod(data, key) {
 		var period = (data.periods || {})[key];
