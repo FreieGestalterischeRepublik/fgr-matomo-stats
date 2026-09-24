@@ -2,7 +2,7 @@
 /**
  * Plugin Name:  FGR Matomo Stats
  * Description:  Zeigt die Matomo-Statistiken dieser Seite direkt im WordPress-Backend an. Funktioniert nur mit dem Matomo der Freien Gestalterischen Republik.
- * Version:      1.0.0
+ * Version:      1.0.1
  * Author:       Freie Gestalterische Republik
  * Author URI:   https://fgr.design
  * License:      GPL-2.0-or-later
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'FGR_MS_VERSION', '1.0.0' );
+define( 'FGR_MS_VERSION', '1.0.1' );
 define( 'FGR_MS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FGR_MS_URL', plugin_dir_url( __FILE__ ) );
 define( 'FGR_MS_API_BASE', 'https://fgr-plugins-api.fgr.design' );
@@ -52,12 +52,26 @@ function fgr_ms_on_activate(): void {
     $data = FGR_MS_Data::fetch_fresh();
 
     if ( $data === null ) {
-        deactivate_plugins( plugin_basename( __FILE__ ) );
-        set_transient( 'fgr_ms_activation_error', 1, 60 );
-        unset( $_GET['activate'] ); // WordPress' Standard-"Plugin aktiviert"-Hinweis unterdrücken.
+        // WordPress traegt das Plugin NACH dem Activation-Hook selbst wieder in
+        // active_plugins ein - ein deactivate_plugins() an dieser Stelle wuerde
+        // also sofort wieder ueberschrieben. Deshalb nur einen Flag setzen und
+        // beim naechsten Request (admin_init) wirklich deaktivieren.
+        set_transient( 'fgr_ms_needs_deactivation', 1, 60 );
     } else {
         fgr_ms_grant_access_to_admins();
     }
+}
+
+add_action( 'admin_init', 'fgr_ms_maybe_deactivate' );
+
+function fgr_ms_maybe_deactivate(): void {
+    if ( ! get_transient( 'fgr_ms_needs_deactivation' ) ) {
+        return;
+    }
+    delete_transient( 'fgr_ms_needs_deactivation' );
+    deactivate_plugins( plugin_basename( __FILE__ ) );
+    set_transient( 'fgr_ms_activation_error', 1, 60 );
+    unset( $_GET['activate'] ); // WordPress' Standard-"Plugin aktiviert"-Hinweis unterdrücken.
 }
 
 add_action( 'admin_notices', 'fgr_ms_activation_error_notice' );
