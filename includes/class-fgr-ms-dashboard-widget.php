@@ -47,37 +47,68 @@ class FGR_MS_Dashboard_Widget {
     }
 
     /**
-     * Kompakte, statische SVG-Sparkline (kein JS nötig, da auf der
+     * Kompakte, statische SVG-Sparkline mit Achsen (kein JS nötig, da auf der
      * Dashboard-Seite kein admin.js geladen wird) für den 30-Tage-Verlauf.
+     * Feste Pixelgröße statt width:100% - sonst würde preserveAspectRatio
+     * beim Strecken die Achsenbeschriftung verzerren (siehe Statistik-Seite,
+     * dort wird die Breite deshalb erst zur Laufzeit per JS gemessen).
      */
     private function render_sparkline( array $trend ): void {
         if ( count( $trend ) < 2 ) {
             return;
         }
 
-        $width  = 280;
-        $height = 50;
-        $pad    = 4;
+        $width     = 280;
+        $height    = 80;
+        $padLeft   = 26;
+        $padRight  = 6;
+        $padTop    = 6;
+        $padBottom = 16;
+        $plotWidth  = $width - $padLeft - $padRight;
+        $plotHeight = $height - $padTop - $padBottom;
 
         $values = array_map( static fn( $p ) => (int) $p['visits'], $trend );
         $max    = max( array_merge( $values, [ 1 ] ) );
-        $stepX  = ( $width - $pad * 2 ) / max( count( $trend ) - 1, 1 );
+        $stepX  = $plotWidth / max( count( $trend ) - 1, 1 );
+
+        $xAt = static fn( $i ) => $padLeft + $i * $stepX;
+        $yAt = static fn( $v ) => $padTop + $plotHeight - ( $v / $max ) * $plotHeight;
 
         $points = [];
         foreach ( $values as $i => $v ) {
-            $x = $pad + $i * $stepX;
-            $y = $height - $pad - ( $v / $max ) * ( $height - $pad * 2 );
-            $points[] = round( $x, 1 ) . ',' . round( $y, 1 );
+            $points[] = round( $xAt( $i ), 1 ) . ',' . round( $yAt( $v ), 1 );
         }
 
-        $area = $points;
-        $area[] = round( $pad + ( count( $values ) - 1 ) * $stepX, 1 ) . ',' . ( $height - $pad );
-        $area[] = round( $pad, 1 ) . ',' . ( $height - $pad );
+        $area   = $points;
+        $area[] = round( $xAt( count( $values ) - 1 ), 1 ) . ',' . round( $yAt( 0 ), 1 );
+        $area[] = round( $xAt( 0 ), 1 ) . ',' . round( $yAt( 0 ), 1 );
 
-        echo '<svg class="fgr-ms-sparkline" viewBox="0 0 ' . esc_attr( $width ) . ' ' . esc_attr( $height ) . '" preserveAspectRatio="none">';
+        echo '<svg class="fgr-ms-sparkline" width="' . esc_attr( $width ) . '" height="' . esc_attr( $height ) . '" viewBox="0 0 ' . esc_attr( $width ) . ' ' . esc_attr( $height ) . '">';
+
+        // Y-Achse: 0 und Maximum.
+        foreach ( [ 0, $max ] as $gridVal ) {
+            $y = round( $yAt( $gridVal ), 1 );
+            echo '<line x1="' . esc_attr( $padLeft ) . '" x2="' . esc_attr( $width - $padRight ) . '" y1="' . esc_attr( $y ) . '" y2="' . esc_attr( $y ) . '" stroke="#e2e4e7" />';
+            echo '<text x="' . esc_attr( $padLeft - 4 ) . '" y="' . esc_attr( $y + 3 ) . '" text-anchor="end" font-size="9" fill="#646970">' . esc_html( (string) $gridVal ) . '</text>';
+        }
+
+        // X-Achse: nur erstes und letztes Datum, mehr passt in der Breite nicht sinnvoll.
+        $first = $trend[0]['date'];
+        $last  = $trend[ count( $trend ) - 1 ]['date'];
+        echo '<text x="' . esc_attr( $padLeft ) . '" y="' . esc_attr( $height - 3 ) . '" text-anchor="start" font-size="9" fill="#646970">' . esc_html( $this->format_short_date( $first ) ) . '</text>';
+        echo '<text x="' . esc_attr( $width - $padRight ) . '" y="' . esc_attr( $height - 3 ) . '" text-anchor="end" font-size="9" fill="#646970">' . esc_html( $this->format_short_date( $last ) ) . '</text>';
+
         echo '<polygon points="' . esc_attr( implode( ' ', $area ) ) . '" fill="rgba(34,113,177,0.12)" stroke="none" />';
         echo '<polyline points="' . esc_attr( implode( ' ', $points ) ) . '" fill="none" stroke="#2271b1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />';
         echo '</svg>';
+    }
+
+    private function format_short_date( string $iso ): string {
+        $parts = explode( '-', $iso );
+        if ( count( $parts ) === 3 ) {
+            return $parts[2] . '.' . $parts[1] . '.';
+        }
+        return $iso;
     }
 
     /**
