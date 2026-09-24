@@ -1,0 +1,61 @@
+.fgr-ms-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.fgr-ms-gear {
+	text-decoration: none;
+	font-size: 20px;
+	line-height: 1;
+}
+
+.fgr-ms-kpis {
+	display: flex;
+	gap: 32px;
+	margin: 20px 0;
+}
+
+.fgr-ms-kpi {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 16px 24px;
+	min-width: 140px;
+}
+
+.fgr-ms-kpi-value {
+	display: block;
+	font-size: 28px;
+	font-weight: 600;
+}
+
+.fgr-ms-kpi-label {
+	color: #646970;
+	font-size: 13px;
+}
+
+.fgr-ms-chart-wrap {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 16px 24px;
+	margin-bottom: 24px;
+}
+
+#fgr-ms-chart {
+	width: 100%;
+	height: 160px;
+}
+
+.fgr-ms-columns {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 24px;
+}
+
+.fgr-ms-updated {
+	color: #646970;
+	font-size: 12px;
+	margin-top: 24px;
+}
